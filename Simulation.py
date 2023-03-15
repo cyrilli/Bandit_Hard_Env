@@ -68,11 +68,14 @@ class simulateOnlineData(object):
 		self.startTime = datetime.datetime.now()
 		timeRun = self.startTime.strftime('_%m_%d_%H_%M') 
 		filenameWriteRegret = os.path.join(save_address, 'AccRegret' + timeRun + self.simulation_signature + '.csv')
+		filenameWriteError = os.path.join(save_address, 'AccError' + timeRun + self.simulation_signature + '.csv')
 		filenameWritePara = os.path.join(save_address, 'ParameterEstimation' + timeRun + self.simulation_signature + '.csv')
 
 		tim_ = []
 		BatchCumlateRegret = {}
 		AlgRegret = {}
+		BatchCumlateError = {}
+		AlgError = {}
 		ThetaDiffList = {}
 		ThetaDiff = {}
 		
@@ -80,7 +83,9 @@ class simulateOnlineData(object):
 		userSize = len(self.users)
 		for alg_name, alg in algorithms.items():
 			AlgRegret[alg_name] = []
+			AlgError[alg_name] = []
 			BatchCumlateRegret[alg_name] = []
+			BatchCumlateError[alg_name] = []
 			if alg.CanEstimateUserPreference:
 				ThetaDiffList[alg_name] = []
 
@@ -88,7 +93,12 @@ class simulateOnlineData(object):
 			f.write('Time(Iteration)')
 			f.write(',' + ','.join([str(alg_name) for alg_name in algorithms.keys()]))
 			f.write('\n')
-		
+
+		with open(filenameWriteError, 'w') as f:
+			f.write('Time(Iteration)')
+			f.write(',' + ','.join([str(alg_name) for alg_name in algorithms.keys()]))
+			f.write('\n')
+
 		with open(filenameWritePara, 'w') as f:
 			f.write('Time(Iteration)')
 			f.write(','+ ','.join([str(alg_name)+'Theta' for alg_name in ThetaDiffList.keys()]))
@@ -111,12 +121,14 @@ class simulateOnlineData(object):
 					# get optimal reward for user x at time t
 					OptimalReward, OptimalArticle = self.GetOptimalReward(u, articlePool)
 					OptimalReward += noise
-					pickedArticle = alg.decide(articlePool, u.id)
+					pickedArticle, reward_prediction_optimistic = alg.decide(articlePool, u.id)
 					reward = self.getReward(u, pickedArticle) + noise
 					alg.updateParameters(pickedArticle, reward, u.id)
 
 					regret = OptimalReward - reward  # pseudo regret, since noise is canceled out
 					AlgRegret[alg_name].append(regret)
+					error = np.abs(reward_prediction_optimistic - self.getReward(u, pickedArticle))  # abs difference between UCB/TS prediction and true mean reward
+					AlgError[alg_name].append(error)
 
 					#update parameter estimation record
 					if alg.CanEstimateUserPreference:
@@ -131,11 +143,17 @@ class simulateOnlineData(object):
 				tim_.append(iter_)
 				for alg_name in algorithms.keys():
 					cumRegret = sum(AlgRegret[alg_name])/userSize
-					BatchCumlateRegret[alg_name].append(sum(AlgRegret[alg_name])/userSize)
-					print("{0: <16}: cum_regret {1}".format(alg_name, cumRegret))
+					BatchCumlateRegret[alg_name].append(cumRegret)
+					cumError = sum(AlgError[alg_name])/userSize
+					BatchCumlateError[alg_name].append(cumError)
+					print("{0: <16}: cum_regret {1}, cum_error {2}".format(alg_name, cumRegret, cumError))
 				with open(filenameWriteRegret, 'a+') as f:
 					f.write(str(iter_))
 					f.write(',' + ','.join([str(BatchCumlateRegret[alg_name][-1]) for alg_name in algorithms.keys()]))
+					f.write('\n')
+				with open(filenameWriteError, 'a+') as f:
+					f.write(str(iter_))
+					f.write(',' + ','.join([str(BatchCumlateError[alg_name][-1]) for alg_name in algorithms.keys()]))
 					f.write('\n')
 				with open(filenameWritePara, 'a+') as f:
 					f.write(str(iter_))
@@ -153,6 +171,18 @@ class simulateOnlineData(object):
 			axa.set_ylabel("Regret")
 			axa.set_title("Accumulated Regret")
 			plt.savefig(os.path.join(save_address, "regret" + "_" + str(timeRun) + self.simulation_signature + '.png'), dpi=300,
+						bbox_inches='tight', pad_inches=0.0)
+			plt.show()
+
+			f, axa = plt.subplots(1)
+			for alg_name in algorithms.keys():
+				axa.plot(tim_, BatchCumlateError[alg_name],label = alg_name)
+				print('%s: %.2f' % (alg_name, BatchCumlateError[alg_name][-1]))
+			axa.legend(loc='upper left',prop={'size':9})
+			axa.set_xlabel("Iteration")
+			axa.set_ylabel("|UCB/TS Prediction - Mean Reward|")
+			axa.set_title("Accumulated Error")
+			plt.savefig(os.path.join(save_address, "error" + "_" + str(timeRun) + self.simulation_signature + '.png'), dpi=300,
 						bbox_inches='tight', pad_inches=0.0)
 			plt.show()
 
@@ -180,7 +210,7 @@ class simulateOnlineData(object):
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description = '')
 	parser.add_argument('--contextdim', type=int, default=25, help='Set dimension of context features.')
-	parser.add_argument('--actionset', type=str, default='adaptive_adversary_2', help='Set type of context features.')
+	parser.add_argument('--actionset', type=str, default='adaptive_adversary_3', help='Set type of context features.')
 	parser.add_argument('--namelabel', type=str, default='', help='Set namelabel.')
 	args = parser.parse_args()
 

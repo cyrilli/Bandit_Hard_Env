@@ -82,7 +82,48 @@ class ArticleManager():
 				featureVector = vects[:, maxcol].reshape(-1,).astype('float64')
 				# print(featureVector)
 				for key in range(1, self.action_set_size):
-					# featureVector = featureVector + np.random.normal(loc=0, scale=0.01, size=self.dimension).reshape(-1,)
+					featureVector = featureVector + np.random.normal(loc=0, scale=0.01, size=self.dimension).reshape(-1,)
+					l2_norm = np.linalg.norm(featureVector, ord=2)
+					articles.append(Article(key, featureVector / l2_norm))
+
+			else:
+				feature_matrix = np.empty([self.action_set_size, self.dimension])
+				for i in range(self.dimension):
+					feature_matrix[:, i] = np.random.normal(0, np.sqrt(1.0 * (self.dimension - i) / self.dimension),
+															self.action_set_size)
+
+				for key in range(self.action_set_size):
+					featureVector = feature_matrix[key]
+					l2_norm = np.linalg.norm(featureVector, ord=2)
+					articles.append(Article(key, featureVector / l2_norm))
+
+		elif self.action_set_type == 'adaptive_adversary_3':
+			if time_ratio is not None and theta_star is not None and theta_hat is not None and AInv is not None:
+				x_star = theta_star
+				articles.append(Article(0, x_star))
+
+				# find orthonormal matrix Q such that Q[1:] are orthogonal to x_star
+				# https://math.stackexchange.com/questions/710103/algorithm-to-find-an-orthogonal-basis-orthogonal-to-a-given-vector/712030#712030
+				e1 = np.eye(self.dimension)[0]
+				if x_star[0] >= 0:
+					w = x_star + e1
+				else:
+					w = x_star - e1
+				Q = np.identity(self.dimension) - 2 * np.outer(w, w) / np.dot(w, w)
+				assert Q.shape == (self.dimension, self.dimension)
+
+				# find the direction that theta_hat is least certain about
+				max_i = None
+				max_val = -np.inf
+				for i in Q[1:]:
+					assert np.dot(i, x_star) <= 1e-3
+					val = np.dot(np.dot(i, AInv), i)
+					if val >= max_val:
+						max_i = i
+						max_val = val
+
+				for key in range(1, self.action_set_size):
+					featureVector = max_i + np.random.normal(loc=0, scale=0.01, size=self.dimension).reshape(-1,)
 					l2_norm = np.linalg.norm(featureVector, ord=2)
 					articles.append(Article(key, featureVector / l2_norm))
 

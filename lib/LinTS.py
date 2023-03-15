@@ -49,7 +49,7 @@ class LinTS:
 			if maxPTA < x_pta:
 				articlePicked = x
 				maxPTA = x_pta
-		return articlePicked
+		return articlePicked, maxPTA
 
 	def updateParameters(self, article_picked, click, userID):
 		self.users[userID].updateParameters(article_picked.featureVector, click)

@@ -64,7 +64,7 @@ class LinUCB:
                 articlePicked = x
                 maxPTA = x_pta
 
-        return articlePicked
+        return articlePicked, maxPTA
 
     def updateParameters(self, articlePicked, click, userID):
         self.users[userID].updateParameters(articlePicked.featureVector, click)
